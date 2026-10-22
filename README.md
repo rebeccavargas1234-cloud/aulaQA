@@ -95,18 +95,45 @@ Referência: https://docs.github.com/en/actions/tutorials/build-and-test-code/py
 
 ## CI e CD separados no GitHub Actions
 
-O arquivo `.github/workflows/ci.yml` contém dois jobs. No gráfico do Actions:
+O arquivo `.github/workflows/ci.yml` contém três jobs. No gráfico do Actions:
 
 ```text
-Pytest (CI) → CD - Render
+Pytest (construção e testes) → Pacote e artefato → CD - Render
 ```
 
-`needs: tests` faz o CD aguardar o CI e impede deploy quando os testes falham.
-Em pull requests e pushes em outras branches, apenas CI executa; CD fica ignorado.
+1. **Construção e testes (`tests`, check `Pytest`):** instala as dependências,
+   compila o código Python para verificar sua sintaxe e executa os testes e a
+   cobertura. Flask não precisa de compilação de frontend neste projeto.
+2. **Pacote e artefato (`artifact`):** `needs: tests` exige o CI aprovado.
+   Obtém a mesma revisão e executa `scripts/package.py`, gerando `dist/petshop.zip`
+   e seu checksum SHA-256. O ZIP contém código, templates, CSS, requisitos, testes,
+   configurações Render, documentação e `COMMIT.txt` com o SHA avaliado.
+   O pacote não inclui dependências instaladas: instale os requisitos ao extraí-lo.
+   A seleção explícita exclui `.env`, `.git`, `.tools` e ambientes virtuais.
+   `upload-artifact` disponibiliza os arquivos por sete dias na seção **Artifacts**
+   da execução no Actions. Não há publicação no PyPI nem criação de GitHub Release.
+3. **CD (`deploy`):** `needs: artifact` exige que o artefato seja gerado e salvo.
+   Mantém o Deploy Hook e a seleção de ambiente descritos abaixo.
+
+Em pull requests e pushes em outras branches, os dois primeiros jobs executam;
+CD fica ignorado. Falha em qualquer um deles bloqueia o CD.
 Um push em `release/homolog` seleciona o Environment `homologacao`; em `main`,
 seleciona `producao`. O CD envia ao Render o SHA do commit aprovado, usando um
 Deploy Hook. O job verde significa que o Render aceitou a solicitação, não que a
 publicação terminou. Build, inicialização e health check são acompanhados no Render.
+
+**O CD permanece por commit:** o Render obtém o código do GitHub e instala as
+dependências. Ele não baixa o ZIP salvo no Actions. O artefato serve para download,
+inspeção e demonstração de empacotamento; implantar exatamente esse arquivo exigiria
+alterar a estratégia de CD.
+
+Para gerar o mesmo pacote localmente:
+
+```powershell
+.\.tools\portable\python.exe scripts/package.py
+```
+
+Referência de artefatos: https://github.com/actions/upload-artifact
 
 ### Configuração necessária (após autorização para publicação)
 
