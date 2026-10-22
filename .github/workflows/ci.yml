@@ -1,4 +1,4 @@
-name: CI - Testes do Pet Shop
+name: CI e CD - Pet Shop
 
 on:
   push:
@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   tests:
+    # Mantém o nome do check para regras de proteção existentes.
     name: Pytest
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -25,5 +26,63 @@ jobs:
             requirements-dev.txt
       - name: Instalar dependências
         run: python -m pip install -r requirements-dev.txt
+      - name: Construir e verificar o código Python
+        run: python -m compileall -q app.py
       - name: Executar testes e medir cobertura
         run: python -m pytest -v --junitxml=test-results.xml --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=90
+
+  artifact:
+    name: Pacote e artefato
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Obter o mesmo código aprovado pelo CI
+        uses: actions/checkout@v7
+      - name: Configurar Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Gerar pacote ZIP e checksum
+        run: python scripts/package.py
+      - name: Disponibilizar artefato para download
+        uses: actions/upload-artifact@v7
+        with:
+          name: petshop-${{ github.sha }}
+          path: |
+            dist/petshop.zip
+            dist/petshop.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: CD - Render
+    needs: artifact
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/homolog')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'producao' || 'homologacao' }}
+    concurrency:
+      group: render-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Verificar configuração do ambiente
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo 'Configure o secret RENDER_DEPLOY_HOOK_URL no Environment deste job.'
+            exit 1
+          fi
+      - name: Solicitar deploy do commit aprovado no Render
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          # A URL do hook já contém o parâmetro secreto key; ref fixa o commit testado.
+          curl --fail --silent --show-error --max-time 60 \
+            --request POST --output /dev/null \
+            "${DEPLOY_HOOK}&ref=${GITHUB_SHA}"
+          echo 'Solicitação aceita pelo Render. Acompanhe build e publicação no painel do serviço.' >> "$GITHUB_STEP_SUMMARY"

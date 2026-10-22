@@ -89,8 +89,73 @@ execução remota do GitHub Actions ou deploy. Para repetir neste checkout:
    `Pytest`. Para impedir merges com falhas, configure uma regra de proteção da
    branch exigindo esse check; o YAML não configura essa regra.
 
-O workflow não publica o site nem utiliza credenciais de deploy.
+O job de testes continua separado do job de deploy. O nome do check de testes
+permanece `Pytest`, para manter a referência em regras de proteção já configuradas.
 Referência: https://docs.github.com/en/actions/tutorials/build-and-test-code/python
+
+## CI e CD separados no GitHub Actions
+
+O arquivo `.github/workflows/ci.yml` contém três jobs. No gráfico do Actions:
+
+```text
+Pytest (construção e testes) → Pacote e artefato → CD - Render
+```
+
+1. **Construção e testes (`tests`, check `Pytest`):** instala as dependências,
+   compila o código Python para verificar sua sintaxe e executa os testes e a
+   cobertura. Flask não precisa de compilação de frontend neste projeto.
+2. **Pacote e artefato (`artifact`):** `needs: tests` exige o CI aprovado.
+   Obtém a mesma revisão e executa `scripts/package.py`, gerando `dist/petshop.zip`
+   e seu checksum SHA-256. O ZIP contém código, templates, CSS, requisitos, testes,
+   configurações Render, documentação e `COMMIT.txt` com o SHA avaliado.
+   O pacote não inclui dependências instaladas: instale os requisitos ao extraí-lo.
+   A seleção explícita exclui `.env`, `.git`, `.tools` e ambientes virtuais.
+   `upload-artifact` disponibiliza os arquivos por sete dias na seção **Artifacts**
+   da execução no Actions. Não há publicação no PyPI nem criação de GitHub Release.
+3. **CD (`deploy`):** `needs: artifact` exige que o artefato seja gerado e salvo.
+   Mantém o Deploy Hook e a seleção de ambiente descritos abaixo.
+
+Em pull requests e pushes em outras branches, os dois primeiros jobs executam;
+CD fica ignorado. Falha em qualquer um deles bloqueia o CD.
+Um push em `release/homolog` seleciona o Environment `homologacao`; em `main`,
+seleciona `producao`. O CD envia ao Render o SHA do commit aprovado, usando um
+Deploy Hook. O job verde significa que o Render aceitou a solicitação, não que a
+publicação terminou. Build, inicialização e health check são acompanhados no Render.
+
+**O CD permanece por commit:** o Render obtém o código do GitHub e instala as
+dependências. Ele não baixa o ZIP salvo no Actions. O artefato serve para download,
+inspeção e demonstração de empacotamento; implantar exatamente esse arquivo exigiria
+alterar a estratégia de CD.
+
+Para gerar o mesmo pacote localmente:
+
+```powershell
+.\.tools\portable\python.exe scripts/package.py
+```
+
+Referência de artefatos: https://github.com/actions/upload-artifact
+
+### Configuração necessária (após autorização para publicação)
+
+1. Crie dois serviços Render: produção com `render.yaml` na branch `main` e
+   homologação com `render-homolog.yaml` na branch `release/homolog`.
+2. Em cada serviço, confirme **Settings → Auto-Deploy → Off**. Ambos os YAMLs
+   usam `autoDeployTrigger: 'off'` para deixar o deploy de código a cargo do Actions.
+   A criação inicial e sincronizações do Blueprint podem provisionar ou atualizar
+   recursos; revise essas operações separadamente no Render.
+3. No GitHub, abra **Settings → Environments** e crie `homologacao` e `producao`.
+4. Em cada Environment, adicione um **Environment secret** chamado
+   `RENDER_DEPLOY_HOOK_URL`. O valor deve ser a URL de **Settings → Deploy Hook**
+   do serviço Render correspondente. Use o mesmo nome de secret nos dois ambientes,
+   com valores diferentes. Não coloque a URL em código, logs ou mensagens.
+5. Quando disponíveis para seu plano/repositório, restrinja as branches permitidas
+   de cada Environment e configure aprovação manual para `producao` se desejar.
+6. Depois de revisar e autorizar o envio, um push em cada branch executará CI e
+   acionará somente seu serviço. Sem o secret, CI pode passar, mas CD falha com
+   uma mensagem de configuração. Não foi realizada nenhuma configuração remota.
+
+Referências: https://render.com/docs/deploy-hooks e
+https://docs.github.com/en/actions/concepts/workflows-and-actions/deployment-environments
 
 ## Deploy no Render e ligação com o CI
 
@@ -105,11 +170,11 @@ o envio ao GitHub e a criação do serviço no Render.
    `0.0.0.0:$PORT`. Gunicorn é o servidor de produção; `flask run` é para uso local.
 4. O Blueprint gera `SECRET_KEY`, fixa Python 3.12.8 e usa `/health` para verificar
    a saúde. Não coloque segredos no repositório.
-5. `autoDeployTrigger: checksPass` faz deploys automáticos da branch vinculada
-   aguardarem os checks. Confirme **After CI Checks Pass** no painel e o acesso
-   aos checks do repositório. A criação inicial pelo Blueprint já provisiona o
-   serviço: revise o resultado do CI antes de criá-lo. Não há previews de PRs.
-6. Um push ou merge em `main` executa CI; passando os checks, o Render inicia CD.
+5. `autoDeployTrigger: 'off'` desativa o deploy automático por commit no Render.
+   Configure os Environments e Deploy Hooks no GitHub conforme a seção acima.
+   A criação inicial pelo Blueprint já provisiona o serviço: revise o resultado
+   do CI antes de criá-lo. Não há previews de PRs.
+6. Um push ou merge em `main` executa CI; passando os testes, o job CD chama o Render.
    Uma PR testa a proposta, mas só vai para produção após chegar à branch vinculada.
    Falhas de build ou health check ainda podem impedir deploy com CI verde:
    acompanhe os logs do Render.

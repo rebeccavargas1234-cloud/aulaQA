@@ -9,6 +9,29 @@ def test_catalog(client):
     assert response.text.count("Adicionar ao carrinho +") == 6
 
 
+@pytest.mark.parametrize("path", ["/catalogo", "/catalogo/"])
+def test_catalog_page_and_navigation(client, path):
+    home = client.get("/")
+    assert 'href="/catalogo"' in home.text
+    response = client.get(path)
+    assert response.status_code == 200
+    assert "Catálogo de produtos" in response.text
+    assert response.text.count("Adicionar ao carrinho +") == 6
+    assert 'aria-current="page"' in response.text
+    assert 'action="/catalogo"' in response.text
+    assert 'class="hero"' not in response.text
+
+
+def test_catalog_filters_and_clear(client):
+    response = client.get("/catalogo", query_string={"q": "Bolinha", "category": "Brinquedos"})
+    assert response.status_code == 200
+    assert response.text.count("Adicionar ao carrinho +") == 1
+    assert "Bolinha interativa" in response.text
+    assert "Ração natural para cães" not in response.text
+    assert 'href="/catalogo">Limpar' in response.text
+    assert client.get("/catalogo").text.count("Adicionar ao carrinho +") == 6
+
+
 def test_search_and_category(client):
     response = client.get("/", query_string={"q": "RAÇÃO", "category": "Alimentação"})
     assert response.text.count("Adicionar ao carrinho +") == 2

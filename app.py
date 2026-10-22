@@ -52,14 +52,19 @@ def create_app(test_config=None):
         return dict(cart_count=sum(session.get("cart", {}).values()), csrf_token=csrf_token)
 
     @app.get("/")
-    def catalog():
+    def home():
+        return catalog(show_hero=True)
+
+    @app.get("/catalogo", strict_slashes=False)
+    def catalog(show_hero=False):
         query = request.args.get("q", "").strip()
         category = request.args.get("category", "")
         products = [p for p in PRODUCTS.values()
                     if query.casefold() in p["name"].casefold()
                     and (not category or p["category"] == category)]
         return render_template("catalog.html", products=products, query=query,
-                               category=category, categories=sorted({p["category"] for p in PRODUCTS.values()}))
+                               category=category, show_hero=show_hero,
+                               categories=sorted({p["category"] for p in PRODUCTS.values()}))
 
     @app.get("/carrinho")
     def cart():

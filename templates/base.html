@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Pet Shop didático para aprender testes automatizados e CI/CD."><title>{% block title %}Pata & Companhia · Pet Shop{% endblock %}</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
 <body>
 <div class="notice">Projeto educativo de QA · Compras simuladas, sem cobrança</div>
-<header><a class="brand" href="{{ url_for('catalog') }}">🐾 Pata & Companhia</a><nav aria-label="Menu principal"><a href="{{ url_for('catalog') }}">Catálogo</a><a class="cart-link" href="{{ url_for('cart') }}">Carrinho <span>{{ cart_count }}</span></a></nav></header>
+<header><a class="brand" href="{{ url_for('home') }}">🐾 Pata & Companhia</a><nav aria-label="Menu principal"><a href="{{ url_for('catalog') }}"{% if request.endpoint == 'catalog' %} aria-current="page"{% endif %}>Catálogo</a><a class="cart-link" href="{{ url_for('cart') }}">Carrinho <span>{{ cart_count }}</span></a></nav></header>
 <main id="conteudo">{% for category, message in get_flashed_messages(with_categories=true) %}<div class="alert {{ category }}" role="status">{{ message }}</div>{% endfor %}{% block content %}{% endblock %}</main>
-<footer><strong>Pata & Companhia</strong><p>Cuidado que aproxima. Carinho em cada detalhe.</p><small>Loja demonstrativa · Flask + Pytest + GitHub Actions</small></footer>
+<footer><strong>qualquer coisa</strong><p>Cuidado que aproxima. Carinho em cada detalhe.</p><small>Loja demonstrativa</small></footer>
 </body></html>
