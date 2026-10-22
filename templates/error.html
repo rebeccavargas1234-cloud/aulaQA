@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block content %}<section class="empty"><h1>{{ error.code }}</h1><p>{{ error.description if error.code == 400 else 'Página ou produto não encontrado.' }}</p><a class="button" href="{{ url_for('catalog') }}">Voltar ao catálogo</a></section>{% endblock %}
