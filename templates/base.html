@@ -5,5 +5,5 @@
 <div class="notice">Projeto educativo de QA · Compras simuladas, sem cobrança</div>
 <header><a class="brand" href="{{ url_for('home') }}">🐾 Pata & Companhia</a><nav aria-label="Menu principal"><a href="{{ url_for('catalog') }}"{% if request.endpoint == 'catalog' %} aria-current="page"{% endif %}>Catálogo</a><a class="cart-link" href="{{ url_for('cart') }}">Carrinho <span>{{ cart_count }}</span></a></nav></header>
 <main id="conteudo">{% for category, message in get_flashed_messages(with_categories=true) %}<div class="alert {{ category }}" role="status">{{ message }}</div>{% endfor %}{% block content %}{% endblock %}</main>
-<footer><strong>qualquer coisa</strong><p>Cuidado que aproxima. Carinho em cada detalhe.</p><small>Loja demonstrativa</small></footer>
+<footer><strong>Site de petshop</strong><p>Cuidado que aproxima. Carinho em cada detalhe.</p><small>Loja demonstrativa</small></footer>
 </body></html>
